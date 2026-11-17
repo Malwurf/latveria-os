@@ -1,0 +1,6 @@
+{
+  "profiles": [
+    { "key": "Personal", "label": "Personal", "claudeDir": "~/.claude", "color": "#e3b341" },
+    { "key": "Work", "label": "Work", "claudeDir": "~/.claude-work", "color": "#6ea8fe" }
+  ]
+}

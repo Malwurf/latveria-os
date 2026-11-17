@@ -1,0 +1,26 @@
+LatveriaOS — independent fan tribute, not affiliated with Marvel.
+Copyright 2026 LatveriaOS contributors. Licensed under the Apache License 2.0 (LICENSE).
+
+This repository includes third-party material:
+
+1. Material Icon Theme 5.40.0 — icons and file-icon mappings
+   mods/latveria-files/icons/material/*.svg, mods/latveria-files/material-icons.js
+   Copyright (c) 2025 Material Extensions — MIT License, full text in
+   mods/latveria-files/icons/material/LICENSE
+   https://github.com/material-extensions/vscode-material-icon-theme
+
+2. Herdr app 0.1.16 — the shipped "files" mod, cloned as mods/latveria-files;
+   the original is kept unchanged in upstream/files-0.1.16/main.js
+   Apache License 2.0 — https://github.com/herdrdev/herdr-app
+
+3. Herdr app 0.1.16 — the shipped "agents" mod, cloned as mods/latveria-agents;
+   the original is kept unchanged in upstream/agents-0.1.16/main.js
+   Apache License 2.0 — https://github.com/herdrdev/herdr-app
+
+4. Herdr app 0.1.16 — the shipped "workspace-status" mod, cloned as mods/latveria-status;
+   the original is kept unchanged in upstream/workspace-status-0.1.16/main.js
+   Apache License 2.0 — https://github.com/herdrdev/herdr-app
+
+5. Herdr app 0.1.16 — the shipped "toast" mod, cloned as mods/latveria-toast;
+   the original is kept unchanged in upstream/toast-0.1.16/main.js
+   Apache License 2.0 — https://github.com/herdrdev/herdr-app

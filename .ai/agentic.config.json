@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "baseBranch": "main",
+  "validation": {
+    "commands": [
+      "npm run lint",
+      "npm test",
+      "npm run privacy"
+    ]
+  },
+  "paths": {
+    "designs": "../GEM/.claude/designs",
+    "plans": ".claude/plans"
+  }
+}

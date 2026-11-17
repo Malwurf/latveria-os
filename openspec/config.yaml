@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Projekt: LatveriaOS — layout + mody do Herdr app (desktop, herdr-app 0.1.16 / herdr-core 0.1.21): motyw ciemnozielony,
+  panel Files z ikonami Material Icon Theme, lista agentów z profilem konta Claude i maszyną, limity 5h/7d per profil z wielu maszyn.
+  Stack: JavaScript ESM bez builda; mody = mods/<name>/main.js na gpui-kit (typy: ~/.config/herdr-app/herdr.d.ts, gpui-kit.d.ts).
+  Testy: node --test na atrapach herdr/gpui-kit (test/fake/), skanery reguł (kontrast motywu, zakazane wywołania, prywatność).
+  Bramka: npm run lint ; npm test ; npm run privacy. TDD.
+  Niezmienniki (CLAUDE.md „Zasady, których nie łamiemy”): zero poświadczeń (Keychain/OAuth/API), mody tylko czytają repozytoria,
+  kontrast >= 4.5:1 i tekst >= 12 px, zero danych osobowych i nazw klientów w repo, maszyna zdalna = pełnoprawny przypadek,
+  brak danych -> "?" zamiast błędu.
+  Izolacja danych: pominięta świadomie — jeden użytkownik; dane (etykiety terminali, zrzuty limitów) krążą tylko między
+  jego maszynami przez herdr-core/SSH, nic nie wychodzi do sieci.
+  Roadmapa z etapami (MVP / Później / Po MVP / Nigdy): ../GEM/docs/projekty/latveria-os/00-przeglad.md.
+  Konwencje: conventional commits, gałęzie feat/*, PR do main; docs PL, kod EN. Design: ../GEM/.claude/designs/latveria-os.md.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

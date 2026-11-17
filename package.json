@@ -1,0 +1,13 @@
+{
+  "name": "latveria-os",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "privacy": "node scripts/privacy.mjs"
+  },
+  "devDependencies": { "eslint": "10.15.0" }
+}
