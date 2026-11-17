@@ -40,7 +40,8 @@ Choosing a profile SHALL open a new tab named `→ <label>` in the conversation'
 runs a fixed `sh` script with the values only as positional arguments. The script SHALL create the target
 `projects/<slug>/` folder, copy the transcript and its `<uuid>/` folder there without overwriting existing files,
 and run `claude --resume <uuid> --fork-session`: with `CLAUDE_CONFIG_DIR` unset when the target's `claudeDir`
-resolves to `$HOME/.claude`, set to the target's real folder otherwise. The source files and the old tab SHALL stay
+resolves to `$HOME/.claude`, set to the target's `claudeDir` as the map writes it (`~` expanded, no trailing `/`)
+otherwise, so a resumed session labels its transcript in the same form the map uses. The source files and the old tab SHALL stay
 as they were.
 
 #### Scenario: Hand-off to a second account

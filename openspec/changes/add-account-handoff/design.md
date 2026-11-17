@@ -29,6 +29,9 @@ accounts are out of scope), carrying model or permission mode, `/rewind` across 
   hand-back never meets an existing file. Copy skips files that already exist (temp file + `mv`).
 - **Start folder from a label**, not `PaneInfo.cwd`: resume finds the conversation by the folder it started in.
 - **Copy the `<uuid>/` folder too**, so the resumed conversation does not depend on the source account's files.
+- **Paths as the map writes them** (`~` expanded, no symlink resolution; Przemek 17.11, option a): the resumed
+  session's `CLAUDE_CONFIG_DIR` and its transcript label then match the map, so a hand-back finds it again; a
+  mismatch only hides the button.
 - **The default account by path, not by key**: a target whose `claudeDir` resolves to `$HOME/.claude` runs with
   `env -u CLAUDE_CONFIG_DIR`, every other with `env CLAUDE_CONFIG_DIR=<dir>`.
 - **Button for `blocked`, `done` and `idle`**, hidden for `working` (two live sessions editing files) and for remote
