@@ -5,6 +5,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, machines, exec, readTextFile, home } from "herdr";
 import { parseProfiles, profileOf, machineOf } from "./profile.js";
+import { source, targets, handoffArgv, limits } from "./handoff.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -94,6 +95,7 @@ function icon(p, size, color) {
 
 export default class Agents extends View {
   init(_props, cx) {
+    if (props()?.handoff) { this.loadTargets(cx); return; }
     if (props()?.sortMenu) return;
     this.folded = new Set();
     // Each agent's last state and when it changed (ms), kept across restarts.
@@ -194,6 +196,37 @@ export default class Agents extends View {
         .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
+  // The hand-off popup: this computer's other profiles and their limits from local snapshots.
+  loadTargets(cx) {
+    this.targets = [];
+    cx.spawn(async (cx) => {
+      const all = await profilesOn(null);
+      const now = Math.floor(Date.now() / 1000);
+      this.targets = await Promise.all(targets(props().handoff.key, all).map(async (p) => ({ ...p,
+        limits: limits(await readTextFile(`${home()}/.cache/latveria/quota-${p.key}.json`).catch(() => null), now) })));
+      cx.notify();
+    });
+  }
+
+  handoffMenu(t) {
+    const src = props().handoff;
+    return v_flex().w_full().p(5).bg(t.popover).text_size(13)
+      .child(div().px(8).pt(4).pb(6).text_size(12).text_color(t.dim).child("Continue this conversation on"))
+      .children((this.targets ?? []).map((p) => h_flex()
+        .id(`handoff-to-${p.key}`)
+        .h(31).px(8).gap(9).rounded(7).items_center().text_color(t.foreground)
+        .hover((el) => el.bg(t.hover))
+        .on_click(() => {
+          const argv = handoffArgv(src, p, home());
+          if (argv) run("tab.new", { space: src.space, folder: src.cwd, name: `\u2192 ${p.label}`, argv });
+          closeOverlay(props().overlay);
+        })
+        .child(div().size(8).flex_none().rounded(4)
+          .when(Boolean(p.color), (el) => el.bg(p.color))
+          .when(!p.color, (el) => el.border(1.5).border_color(t.dim)))
+        .child(div().flex_1().child(`${p.label} \u00b7 ${p.limits}`))));
+  }
+
   peek(addr) {
     run("terminal.peek", { terminal: addr });
   }
@@ -260,6 +293,7 @@ export default class Agents extends View {
 
   render(cx) {
     const t = theme();
+    if (props()?.handoff) return this.handoffMenu(t);
     if (props()?.sortMenu) return this.sortMenu(t);
     const collapsed = narrow();
     const sort = sortOf();
@@ -379,6 +413,23 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(13));
+      // Continue this conversation on another profile of this computer (an agent stuck on a limit).
+      const local = this.profiles.get(null) ?? [];
+      const hand = this.hovered === a.address ? source(a, terminalByAddress.get(a.address)?.labels, local, home()) : null;
+      const handBtn = hand && div()
+        .id(`handoff-${a.address}`)
+        .flex_none()
+        .p(2)
+        .rounded(4)
+        .text_color(t.dim)
+        .cursor_pointer()
+        .hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .tooltip("Continue on another account")
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          openOverlay({ mod: "latveria-agents", kind: "popup", width: 260, height: 40 + 31 * targets(hand.key, local).length, props: { handoff: hand } });
+        })
+        .child(svg("mods/workspace-chrome/git-compare.svg").size(13));
       // Under a space header the space goes without saying; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the row names its space.
       const full = byPriority || isPinned;
@@ -411,7 +462,7 @@ export default class Agents extends View {
           .child(h_flex().flex_1().min_w(0).gap(5).items_center()
             .child(div().min_w(0).max_w(200).truncate().text_color(idle ? t.muted : t.foreground).child(name)))
           .when(subs.length > 0, el => el.child(fold(a, subs)))
-          .when(this.hovered === a.address, el => el.child(pin))
+          .when(this.hovered === a.address, el => el.when(Boolean(handBtn), (e) => e.child(handBtn)).child(pin))
           .when(this.hovered !== a.address && Boolean(when), el => el.child(div().flex_none().text_size(12).text_color(t.dim).child(duration(now - when))))
           .child(this.status(t, a, byPriority && !isPinned)))
         // Under the name, past the icon: profile, machine, then the detail.

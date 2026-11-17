@@ -175,3 +175,72 @@ for (const sort of ["priority", "grouped"]) {
     assert.ok(!badge.calls.some(([m]) => m === "bg"), "not tinted when selected");
   });
 }
+
+// Hand-off: continue a local agent's conversation on another profile of this computer.
+const H = await import("../mods/latveria-agents/handoff.js");
+const HID = "0f1e2d3c-4b5a-4968-8778-a1b2c3d4e5f6";
+const TR = `/home/test/.claude/projects/-src-app/${HID}.jsonl`;
+const SRC = { key: "Personal", transcript: TR, cwd: "/src/app", space: "s1", slug: "-src-app", id: HID };
+const handReady = (address = "t1", status = "done") => {
+  fake.agents = [agent(address, status)];
+  fake.terminals = [{ address, state: "live", labels: { [LABEL]: "Personal", "latveria.transcript": TR, "latveria.cwd": "/src/app" } }];
+  fake.files[PROFILES] = MAP;
+};
+const hover = (v, address) => { v.hovered = address; return v.render(cx); };
+const buttonOf = (tree, address) => nodes(tree).find((n) => has(n, "id", `handoff-${address}`));
+const click = (n) => n.calls.find(([m]) => m === "on_click")[1]({}, cx);
+
+test("hand-off button on a hovered local agent that isn't working", async () => {
+  handReady();
+  const v = await opened();
+  assert.ok(!buttonOf(v.render(cx), "t1"), "not without hover");
+  assert.ok(buttonOf(hover(v, "t1"), "t1"));
+});
+
+test("no hand-off button for working, remote, or unlabelled agents", async () => {
+  handReady("t1", "working");
+  assert.ok(!buttonOf(hover(await opened(), "t1"), "t1"));
+  handReady("laptop/t2", "done");
+  assert.ok(!buttonOf(hover(await opened(), "laptop/t2"), "laptop/t2"));
+  handReady();
+  delete fake.terminals[0].labels["latveria.cwd"];
+  assert.ok(!buttonOf(hover(await opened(), "t1"), "t1"));
+});
+
+test("the narrow rail shows no hand-off button", async () => {
+  handReady();
+  fake.layout = { id: "root", children: [{ id: "sidebar", size: { px: 76 } }] };
+  assert.ok(!buttonOf(hover(await opened(), "t1"), "t1"));
+});
+
+test("the button opens a popup with the hand-off's source", async () => {
+  handReady();
+  const v = await opened();
+  click(buttonOf(hover(v, "t1"), "t1"));
+  const o = fake.overlays.at(-1);
+  assert.equal(o.mod, "latveria-agents");
+  assert.equal(o.kind, "popup");
+  assert.deepEqual(o.props.handoff, SRC);
+});
+
+test("the popup lists the other profiles with their limits, then opens the tab and closes", async () => {
+  fake.files[PROFILES] = MAP;
+  const now = Math.floor(Date.now() / 1000);
+  fake.files["/home/test/.cache/latveria/quota-Work.json"] = JSON.stringify({ rate_limits: {
+    five_hour: { used_percentage: 6, resets_at: now + 600 }, seven_day: { used_percentage: 27, resets_at: now + 6000 } } });
+  fake.props = { handoff: SRC, overlay: "o9" };
+  const tree = (await opened()).render(cx);
+  assert.match(text(tree), /Work · 5h 6% · 7d 27%/);
+  assert.ok(!text(tree).includes("Personal ·"), "not the source profile");
+  click(nodes(tree).find((n) => has(n, "id", "handoff-to-Work")));
+  const [name, args] = fake.runs.at(-1);
+  assert.equal(name, "tab.new");
+  assert.deepEqual(args, { space: "s1", folder: "/src/app", name: "→ Work", argv: H.handoffArgv(SRC, { dir: "~/.claude-work" }, "/home/test") });
+  assert.deepEqual(fake.closed, ["o9"]);
+});
+
+test("a target without a snapshot shows ?", async () => {
+  fake.files[PROFILES] = MAP;
+  fake.props = { handoff: SRC, overlay: "o9" };
+  assert.match(text((await opened()).render(cx)), /Work · 5h \? · 7d \?/);
+});
