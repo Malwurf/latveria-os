@@ -25,8 +25,9 @@ test("a profile keeps a valid claudeDir as dir, else null", () => {
   const list = parseProfiles(JSON.stringify({ profiles: [
     { key: "A", claudeDir: "~/.claude" }, { key: "B", claudeDir: "/home/test/.claude-b" },
     { key: "C", claudeDir: "relative" }, { key: "D", claudeDir: "~/../etc" }, { key: "E", claudeDir: "/a\nb" }, { key: "F" },
+    { key: "G", claudeDir: "~" },
   ] }));
-  assert.deepEqual(list.map((p) => p.dir), ["~/.claude", "/home/test/.claude-b", null, null, null, null]);
+  assert.deepEqual(list.map((p) => p.dir), ["~/.claude", "/home/test/.claude-b", null, null, null, null, "~"]);
 });
 test("caps the number of profiles", () => {
   const many = { profiles: Array.from({ length: 100 }, (_, i) => ({ key: `p${i}` })) };

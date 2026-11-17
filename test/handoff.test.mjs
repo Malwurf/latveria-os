@@ -1,7 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,7 +13,7 @@ const ID = "0f1e2d3c-4b5a-4968-8778-a1b2c3d4e5f6";
 const P = [{ key: "Personal", label: "Personal", dir: "~/.claude" }, { key: "Work", label: "Work", dir: "~/.claude-work" }];
 const T = `${HOME}/.claude/projects/-src-app/${ID}.jsonl`;
 const labels = (o = {}) => ({ "latveria.profile": "Personal", "latveria.transcript": T, "latveria.cwd": "/src/app", ...o });
-const agent = (o = {}) => ({ address: "t1", status: "done", space: "s1", ...o });
+const agent = (o = {}) => ({ address: "t1", status: "done", space: "s1", app: "claude-code", ...o });
 
 test("expand: ~ and a trailing slash", () => {
   assert.equal(H.expand("~/.claude/", HOME), `${HOME}/.claude`);
@@ -46,6 +46,17 @@ test("source: no button for working, remote, missing labels, one profile, unknow
   assert.equal(H.source(agent(), labels(), [P[0], { ...P[1], dir: null }], HOME), null);
 });
 
+test("source: no button once another agent runs in the terminal (labels outlive Claude)", () => {
+  assert.equal(H.source(agent({ app: "codex" }), labels(), P, HOME), null);
+  assert.equal(H.source(agent({ app: null }), labels(), P, HOME), null);
+});
+
+test("source: the start folder must name the transcript's folder", () => {
+  assert.equal(H.source(agent(), labels({ "latveria.cwd": "/elsewhere" }), P, HOME), null);
+  const long = `/${"a".repeat(250)}`; // Claude shortens long folder names, so they aren't compared
+  assert.ok(H.source(agent(), labels({ "latveria.cwd": long }), P, HOME));
+});
+
 test("targets: every other profile with a folder", () => {
   assert.deepEqual(H.targets("Personal", [...P, { key: "X", label: "X", dir: null }]).map((p) => p.key), ["Work"]);
 });
@@ -72,10 +83,10 @@ test("limits: a snapshot's 5h and 7d, ? without one, 0 after a reset, clamped", 
 const roots = [];
 after(() => { for (const r of roots) rmSync(r, { recursive: true, force: true }); });
 
-function world({ withClaude = true, claudeIn = "bin" } = {}) {
+function world({ withClaude = true, claudeIn = "bin", home: homeName = "home" } = {}) {
   const root = mkdtempSync(join(tmpdir(), "latveria-handoff-"));
   roots.push(root);
-  const home = join(root, "home");
+  const home = join(root, homeName);
   const bin = join(root, "bin");
   const src = join(home, ".claude", "projects", "-src-app");
   mkdirSync(join(src, ID, "tool-results"), { recursive: true });
@@ -86,7 +97,7 @@ function world({ withClaude = true, claudeIn = "bin" } = {}) {
   const log = join(root, "claude.log");
   const cdir = claudeIn === "local" ? join(home, ".local", "bin") : bin;
   mkdirSync(cdir, { recursive: true });
-  if (withClaude) writeFileSync(join(cdir, "claude"), `#!/bin/sh\nprintf '%s\\n' "\${CLAUDE_CONFIG_DIR-UNSET}" "$@" > "${log}"\n`, { mode: 0o755 });
+  if (withClaude) writeFileSync(join(cdir, "claude"), `#!/bin/sh\nprintf '%s\\n' "\${CLAUDE_CONFIG_DIR-UNSET}" "$@" > '${log}'\n`, { mode: 0o755 });
   return { root, home, bin, src, log, transcript: join(src, `${ID}.jsonl`) };
 }
 const runScript = (w, dir, slug = "-src-app") => spawnSync("/bin/sh", ["-c", H.HANDOFF_SH, "latveria-handoff", w.transcript, join(dir, "projects", slug), ID, dir],
@@ -108,16 +119,52 @@ test("script: back to ~/.claude runs with CLAUDE_CONFIG_DIR unset and makes no .
   const r = runScript(w, join(w.home, ".claude"));
   assert.equal(r.status, 0, r.stderr);
   assert.equal(readFileSync(w.log, "utf8").split("\n")[0], "UNSET");
-  assert.ok(!existsSync(join(w.home, ".claude", ".claude.json")));
+  // The stray ~/.claude/.claude.json comes from a real claude given CLAUDE_CONFIG_DIR=~/.claude; the live check
+  // covers it, this fake can only show the variable is unset.
 });
 
-test("script: an existing target file is left as it is", () => {
+test("script: the same copy already there resumes without copying again", () => {
+  const w = world();
+  const dir = join(w.home, ".claude-work");
+  assert.equal(runScript(w, dir).status, 0);
+  rmSync(w.log);
+  assert.equal(runScript(w, dir).status, 0);
+  assert.equal(readFileSync(w.log, "utf8").split("\n")[1], "--resume");
+});
+
+test("script: an older copy there stops the hand-off and stays as it is", () => {
   const w = world();
   const dir = join(w.home, ".claude-work");
   mkdirSync(join(dir, "projects", "-src-app"), { recursive: true });
   writeFileSync(join(dir, "projects", "-src-app", `${ID}.jsonl`), "older\n");
-  assert.equal(runScript(w, dir).status, 0);
+  const r = runScript(w, dir);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /older copy of this conversation/);
   assert.equal(readFileSync(join(dir, "projects", "-src-app", `${ID}.jsonl`), "utf8"), "older\n");
+  assert.ok(!existsSync(w.log), "claude not started");
+});
+
+test("script: a copy that fails halfway leaves no transcript, and the next try finishes it", { skip: process.getuid?.() === 0 }, () => {
+  const w = world();
+  const dir = join(w.home, ".claude-work");
+  const locked = join(w.src, ID, "tool-results", "locked.txt");
+  writeFileSync(locked, "secret", { mode: 0o000 });
+  const r = runScript(w, dir);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /saved tool outputs/);
+  assert.ok(!existsSync(join(dir, "projects", "-src-app", `${ID}.jsonl`)), "no transcript, so no half-done target");
+  chmodSync(locked, 0o600);
+  assert.equal(runScript(w, dir).status, 0);
+  assert.equal(readFileSync(join(dir, "projects", "-src-app", ID, "tool-results", "locked.txt"), "utf8"), "secret");
+  assert.deepEqual(readdirSync(join(dir, "projects", "-src-app")).sort(), [ID, `${ID}.jsonl`], "no temp left");
+});
+
+test("script: a home with spaces, quotes and $() stays one argument", () => {
+  const w = world({ home: "home $(touch pwned2) 'q'" });
+  const dir = join(w.home, ".claude-work");
+  assert.equal(runScript(w, dir).status, 0);
+  assert.ok(!existsSync(join(w.root, "pwned2")) && !existsSync("pwned2"));
+  assert.equal(readFileSync(join(dir, "projects", "-src-app", `${ID}.jsonl`), "utf8"), "{\"a\":1}\n");
 });
 
 test("script: hostile folder names stay one argument", () => {
@@ -135,9 +182,11 @@ test("script: claude only in ~/.local/bin is found", () => {
   assert.equal(readFileSync(w.log, "utf8").split("\n")[1], "--resume");
 });
 
-test("script: without claude it says so and fails", () => {
+test("script: without claude it says so and copies nothing", () => {
   const w = world({ withClaude: false });
-  const r = runScript(w, join(w.home, ".claude-work"));
+  const dir = join(w.home, ".claude-work");
+  const r = runScript(w, dir);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /claude not found/);
+  assert.ok(!existsSync(join(dir, "projects")));
 });

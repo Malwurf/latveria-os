@@ -17,7 +17,8 @@ key=$({ sh "$(dirname "$0")/latveria-profile.sh"; } 2>/dev/null) # silent even o
 dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 case "$dir" in "~") dir=$HOME ;; "~/"*) dir="$HOME/${dir#"~/"}" ;; esac
 dir=${dir%/}
-conv=$(head -c 65536 2>/dev/null | jq -rn --arg d "$dir/projects/" '
+conv=
+[ -t 0 ] || conv=$(head -c 65536 2>/dev/null | jq -rn --arg d "$dir/projects/" '
   def ok: type == "string" and startswith("/") and length <= 1024 and (test("[\u0000-\u001f\u007f]") | not);
   input | select(type == "object") | .transcript_path as $t | .cwd as $c
   | select(($t | ok) and ($c | ok) and ($t | startswith($d)))

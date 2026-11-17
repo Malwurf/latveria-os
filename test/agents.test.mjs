@@ -177,7 +177,6 @@ for (const sort of ["priority", "grouped"]) {
 }
 
 // Hand-off: continue a local agent's conversation on another profile of this computer.
-const H = await import("../mods/latveria-agents/handoff.js");
 const HID = "0f1e2d3c-4b5a-4968-8778-a1b2c3d4e5f6";
 const TR = `/home/test/.claude/projects/-src-app/${HID}.jsonl`;
 const SRC = { key: "Personal", transcript: TR, cwd: "/src/app", space: "s1", slug: "-src-app", id: HID };
@@ -221,6 +220,8 @@ test("the button opens a popup with the hand-off's source", async () => {
   assert.equal(o.mod, "latveria-agents");
   assert.equal(o.kind, "popup");
   assert.deepEqual(o.props.handoff, SRC);
+  assert.deepEqual(o.props.targets.map((p) => p.key), ["Work"]);
+  assert.equal(o.height, 40 + 31);
 });
 
 test("the popup lists the other profiles with their limits, then opens the tab and closes", async () => {
@@ -228,19 +229,21 @@ test("the popup lists the other profiles with their limits, then opens the tab a
   const now = Math.floor(Date.now() / 1000);
   fake.files["/home/test/.cache/latveria/quota-Work.json"] = JSON.stringify({ rate_limits: {
     five_hour: { used_percentage: 6, resets_at: now + 600 }, seven_day: { used_percentage: 27, resets_at: now + 6000 } } });
-  fake.props = { handoff: SRC, overlay: "o9" };
+  fake.props = { handoff: SRC, targets: parseProfiles(MAP).filter((p) => p.key === "Work"), overlay: "o9" };
   const tree = (await opened()).render(cx);
   assert.match(text(tree), /Work · 5h 6% · 7d 27%/);
   assert.ok(!text(tree).includes("Personal ·"), "not the source profile");
   click(nodes(tree).find((n) => has(n, "id", "handoff-to-Work")));
   const [name, args] = fake.runs.at(-1);
   assert.equal(name, "tab.new");
-  assert.deepEqual(args, { space: "s1", folder: "/src/app", name: "→ Work", argv: H.handoffArgv(SRC, { dir: "~/.claude-work" }, "/home/test") });
+  assert.deepEqual({ ...args, argv: undefined }, { space: "s1", folder: "/src/app", name: "→ Work", argv: undefined });
+  assert.deepEqual(args.argv.slice(0, 2), ["sh", "-c"]);
+  assert.deepEqual(args.argv.slice(3), ["latveria-handoff", TR, "/home/test/.claude-work/projects/-src-app", HID, "/home/test/.claude-work"]);
   assert.deepEqual(fake.closed, ["o9"]);
 });
 
 test("a target without a snapshot shows ?", async () => {
   fake.files[PROFILES] = MAP;
-  fake.props = { handoff: SRC, overlay: "o9" };
+  fake.props = { handoff: SRC, targets: parseProfiles(MAP).filter((p) => p.key === "Work"), overlay: "o9" };
   assert.match(text((await opened()).render(cx)), /Work · 5h \? · 7d \?/);
 });

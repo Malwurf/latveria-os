@@ -196,13 +196,14 @@ export default class Agents extends View {
         .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
-  // The hand-off popup: this computer's other profiles and their limits from local snapshots.
+  // The hand-off popup: the profiles the row offered (its height was sized for them) and their limits from local
+  // snapshots.
   loadTargets(cx) {
     this.targets = [];
     cx.spawn(async (cx) => {
-      const all = await profilesOn(null);
+      const offered = Array.isArray(props().targets) ? props().targets : [];
       const now = Math.floor(Date.now() / 1000);
-      this.targets = await Promise.all(targets(props().handoff.key, all).map(async (p) => ({ ...p,
+      this.targets = await Promise.all(offered.map(async (p) => ({ ...p,
         limits: limits(await readTextFile(`${home()}/.cache/latveria/quota-${p.key}.json`).catch(() => null), now) })));
       cx.notify();
     });
@@ -427,7 +428,8 @@ export default class Agents extends View {
         .tooltip("Continue on another account")
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          openOverlay({ mod: "latveria-agents", kind: "popup", width: 260, height: 40 + 31 * targets(hand.key, local).length, props: { handoff: hand } });
+          const offer = targets(hand.key, local);
+          openOverlay({ mod: "latveria-agents", kind: "popup", width: 260, height: 40 + 31 * offer.length, props: { handoff: hand, targets: offer } });
         })
         .child(svg("mods/workspace-chrome/git-compare.svg").size(13));
       // Under a space header the space goes without saying; an automatic tab number says nothing.

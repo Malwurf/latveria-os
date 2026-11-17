@@ -88,6 +88,9 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
   overwrites a file the old session still writes to. For the default profile unset `CLAUDE_CONFIG_DIR`; setting it to
   `~/.claude` creates a stray `~/.claude/.claude.json`. Take the folder from the `latveria.cwd` label, not the pane's
   live folder: resume finds a conversation by the folder it started in.
+  Paths are compared as the map writes them (`~` expanded), not resolved: if `CLAUDE_CONFIG_DIR` names the profile's
+  folder through a symlink while the map uses the real path (or the other way round), the button does not show.
+  Labels outlive Claude in a terminal, so the button also checks that the agent reports `claude-code`.
 - Text sizes live in the mods, so Herdr's own spaces list and tabs keep Herdr's sizes.
 
 ## Done when
