@@ -17,6 +17,7 @@ shows 5h/7d usage limits per profile across machines.
 | M2 | Agents list with profile badge and machine, larger text | done |
 | M3 | 5h/7d usage limits per profile, from every machine, in the status bar | done |
 | Waiting agents | Dock badge, clickable "needs you", macOS banners while Herdr is not in front | done |
+| Hand-off | Continue an agent's conversation on another Claude profile of this computer | done |
 
 Panel text sizes live in each mod's code, not in the layout, so M0 changes colors only; the
 spaces list and tabs keep Herdr's sizes until their own mods are cloned.
@@ -59,6 +60,30 @@ Register it once per Claude config in `settings.json` (the installer does not ed
 Sessions started before that show `?` until they restart or resume. Agents on a remote machine get their
 profile from that machine's own hook and map; the list reads each ready machine's map there. A session over
 SSH may have a locked Keychain (`Not logged in`); that is Claude's login, not this hook.
+
+## Hand off to another account
+
+When one Claude profile hits its 5h or 7d limit, hover the agent in the list: a hand-off button appears for an agent
+on this computer that isn't working, when the map has another profile with a `claudeDir`. It opens a popup with the
+other profiles and their limits (`Work · 5h 6% · 7d 27%`, `?` without a snapshot). Choosing one opens a new tab
+`→ Work` in the folder the conversation started in. That tab copies the transcript and its folder of saved tool
+outputs into the other profile's `projects/` (never overwriting anything) and runs
+`claude --resume <id> --fork-session` there, so the conversation goes on under a new id and the old tab stays as it
+was. For the profile whose `claudeDir` is `~/.claude` it unsets `CLAUDE_CONFIG_DIR` (setting it to `~/.claude` makes
+Claude create a stray `~/.claude/.claude.json`); for any other it sets it to `claudeDir` as the map writes it.
+
+The same `SessionStart` hook labels the terminal with the conversation: `latveria.transcript` (its transcript,
+checked to be `<claudeDir>/projects/<folder>/<uuid>.jsonl` of the session's own profile) and `latveria.cwd` (the
+folder it started in). Both refresh after `/clear`, `/resume` and compaction. Sessions started before that get the
+button after a restart or `/resume`.
+
+Limits:
+
+- `/rewind` cannot undo changes made before the hand-off; its checkpoints stay with the first profile.
+- Project memory may differ between profiles (each `claudeDir` has its own).
+- The model and permission mode start from the other profile's defaults.
+- The other profile reads the whole conversation again, without cache.
+- Agents on remote machines get no button.
 
 ## Status bar
 
