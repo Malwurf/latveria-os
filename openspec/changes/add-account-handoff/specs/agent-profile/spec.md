@@ -5,7 +5,8 @@ The hook SHALL label the Herdr terminal `HC_TERMINAL_ID` with `latveria.profile=
 whose `claudeDir` resolves to the same folder as `${CLAUDE_CONFIG_DIR:-~/.claude}` in `$HOME/.config/latveria/profiles.json`;
 the first such profile with a valid key wins. It SHALL also label `latveria.transcript=<path>` and
 `latveria.cwd=<folder>` from the hook's input `transcript_path` and `cwd` when both are valid: the transcript is
-`<claudeDir>/projects/<slug>/<uuid>.jsonl` under the matched profile's real folder (slug of letters, digits, `.`, `_`,
+`<dir>/projects/<slug>/<uuid>.jsonl` where `<dir>` is the session's `${CLAUDE_CONFIG_DIR:-~/.claude}` with `~`
+expanded and no trailing `/` (slug of letters, digits, `.`, `_`,
 `-`, not `.` or `..`; uuid in lowercase hex 8-4-4-4-12), the folder is absolute, and neither has control characters
 or is longer than 1024 characters. It SHALL print nothing and exit 0 in every case.
 
@@ -19,7 +20,7 @@ or is longer than 1024 characters. It SHALL print nothing and exit 0 in every ca
 
 #### Scenario: Invalid conversation values
 - **WHEN** the transcript path is outside the matched profile's `projects/`, its slug is `..`, its name is not a uuid, or the folder is relative, has a newline or is longer than 1024 characters
-- **THEN** the hook labels only `latveria.profile`
+- **THEN** the hook labels only `latveria.profile`; labels from an earlier run stay as they were
 
 #### Scenario: Labels refresh
 - **WHEN** the hook runs again after `/clear`, `/resume` or compaction with a new transcript

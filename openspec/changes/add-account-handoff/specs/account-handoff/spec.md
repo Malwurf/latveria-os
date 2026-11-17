@@ -3,7 +3,8 @@
 ### Requirement: Hand-off button on an agent row
 The agents list SHALL show a hand-off button on an agent row while the pointer is over it when the agent is on this
 computer, its status is not `working`, its terminal has valid `latveria.profile`, `latveria.transcript` and
-`latveria.cwd` labels, the profile is in this computer's map, and the map has at least one other profile.
+`latveria.cwd` labels, the profile is in this computer's map with a `claudeDir` whose `projects/` holds the
+transcript, and the map has at least one other profile with a `claudeDir`. The narrow rail shows no button.
 
 #### Scenario: Agent waiting on a limit
 - **WHEN** a local agent labelled `Personal` with both conversation labels is `done` and the map has `Personal` and `Work`
