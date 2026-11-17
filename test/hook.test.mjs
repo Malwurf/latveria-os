@@ -34,11 +34,11 @@ function setup({ map = MAP, hcExit = 0, hcIn = "bin" } = {}) {
   return { root, home, bin, log, env };
 }
 
-function run(shell, env) {
+function run(shell, env, input) {
   let code = 0;
   let stdout;
   try {
-    stdout = execFileSync(shell, [HOOK], { env, encoding: "utf8" });
+    stdout = execFileSync(shell, [HOOK], { env, encoding: "utf8", input: input ?? "" });
   } catch (err) {
     code = err.status;
     stdout = err.stdout;
@@ -172,5 +172,69 @@ for (const shell of SHELLS) {
     assert.equal(r.stdout, "");
     assert.equal(r.stderr, "");
     assert.equal(logOf(s.log), "");
+  });
+}
+
+// The conversation, for a hand-off: the transcript and the folder it started in, from the hook's stdin JSON.
+const ID = "0f1e2d3c-4b5a-4968-8778-a1b2c3d4e5f6";
+const conv = (home, over = {}) => JSON.stringify({ session_id: ID, source: "startup",
+  transcript_path: join(home, ".claude", "projects", "-src-app", `${ID}.jsonl`), cwd: "/src/app", ...over });
+
+for (const shell of SHELLS) {
+  test(`${shell}: labels the transcript and start folder beside the profile`, () => {
+    const s = setup();
+    const r = run(shell, s.env, conv(s.home));
+    assert.equal(r.code, 0);
+    assert.equal(r.stdout, "");
+    assert.equal(logOf(s.log), `label t7 latveria.profile=Personal latveria.transcript=${join(s.home, ".claude", "projects", "-src-app", `${ID}.jsonl`)} latveria.cwd=/src/app\n`);
+  });
+
+  test(`${shell}: a folder with spaces and quotes is one label`, () => {
+    const s = setup();
+    run(shell, s.env, conv(s.home, { cwd: "/src/my app's" }));
+    assert.match(logOf(s.log), / latveria\.cwd=\/src\/my app's\n$/);
+  });
+
+  test(`${shell}: CLAUDE_CONFIG_DIR given with ~ and a trailing slash still matches`, () => {
+    const s = setup();
+    s.env.CLAUDE_CONFIG_DIR = "~/.claude-work/";
+    run(shell, s.env, conv(s.home, { transcript_path: join(s.home, ".claude-work", "projects", "-src-app", `${ID}.jsonl`) }));
+    assert.match(logOf(s.log), /^label t7 latveria\.profile=Work latveria\.transcript=/);
+  });
+
+  const BAD = [
+    ["outside the session's projects", (h) => ({ transcript_path: join(h, ".claude-work", "projects", "-src-app", `${ID}.jsonl`) })],
+    ["slug ..", (h) => ({ transcript_path: `${h}/.claude/projects/../${ID}.jsonl` })],
+    ["nested folder", (h) => ({ transcript_path: join(h, ".claude", "projects", "a", "b", `${ID}.jsonl`) })],
+    ["not a uuid", (h) => ({ transcript_path: join(h, ".claude", "projects", "-src-app", "notes.jsonl") })],
+    ["uppercase uuid", (h) => ({ transcript_path: join(h, ".claude", "projects", "-src-app", `${ID.toUpperCase()}.jsonl`) })],
+    ["transcript over 1024", (h) => ({ transcript_path: join(h, ".claude", "projects", "x".repeat(1024), `${ID}.jsonl`) })],
+    ["relative folder", () => ({ cwd: "src/app" })],
+    ["newline in folder", () => ({ cwd: "/src/app\nlatveria.profile=Work" })],
+    ["folder over 1024", () => ({ cwd: `/${"x".repeat(1024)}` })],
+    ["missing transcript", () => ({ transcript_path: null })],
+    ["not JSON", () => null],
+  ];
+  for (const [why, over] of BAD) {
+    test(`${shell}: ${why} → only the profile`, () => {
+      const s = setup();
+      const o = over(s.home);
+      run(shell, s.env, o === null ? "{oops" : conv(s.home, o));
+      assert.equal(logOf(s.log), "label t7 latveria.profile=Personal\n");
+    });
+  }
+
+  test(`${shell}: only the first JSON object on stdin counts`, () => {
+    const s = setup();
+    run(shell, s.env, conv(s.home) + conv(s.home, { cwd: "/other" }));
+    assert.match(logOf(s.log), / latveria\.cwd=\/src\/app\n$/);
+  });
+
+  test(`${shell}: a second run labels the new conversation`, () => {
+    const s = setup();
+    run(shell, s.env, conv(s.home));
+    const next = "11111111-2222-4333-8444-555555555555";
+    run(shell, s.env, conv(s.home, { source: "clear", transcript_path: join(s.home, ".claude", "projects", "-src-app", `${next}.jsonl`) }));
+    assert.match(logOf(s.log).split("\n")[1], new RegExp(`latveria\\.transcript=.*${next}\\.jsonl `));
   });
 }

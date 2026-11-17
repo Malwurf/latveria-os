@@ -9,8 +9,8 @@ const MAP = JSON.stringify({ profiles: [
 
 test("parses a profile map", () => {
   assert.deepEqual(parseProfiles(MAP), [
-    { key: "Personal", label: "Personal", color: "#e3b341" },
-    { key: "Work", label: "Work", color: "#6ea8fe" },
+    { key: "Personal", label: "Personal", color: "#e3b341", dir: "~/.claude" },
+    { key: "Work", label: "Work", color: "#6ea8fe", dir: "~/.claude-work" },
   ]);
 });
 test("a broken or hostile map gives no profiles, never an error", () => {
@@ -19,7 +19,15 @@ test("a broken or hostile map gives no profiles, never an error", () => {
 });
 test("bad colors and long labels are tamed", () => {
   const [p] = parseProfiles(JSON.stringify({ profiles: [{ key: "W", label: "x".repeat(40), color: "red" }] }));
-  assert.deepEqual(p, { key: "W", label: "x".repeat(16), color: null });
+  assert.deepEqual(p, { key: "W", label: "x".repeat(16), color: null, dir: null });
+});
+test("a profile keeps a valid claudeDir as dir, else null", () => {
+  const list = parseProfiles(JSON.stringify({ profiles: [
+    { key: "A", claudeDir: "~/.claude" }, { key: "B", claudeDir: "/home/test/.claude-b" },
+    { key: "C", claudeDir: "relative" }, { key: "D", claudeDir: "~/../etc" }, { key: "E", claudeDir: "/a\nb" }, { key: "F" },
+    { key: "G", claudeDir: "~" },
+  ] }));
+  assert.deepEqual(list.map((p) => p.dir), ["~/.claude", "/home/test/.claude-b", null, null, null, null, "~"]);
 });
 test("caps the number of profiles", () => {
   const many = { profiles: Array.from({ length: 100 }, (_, i) => ({ key: `p${i}` })) };

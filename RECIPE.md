@@ -38,6 +38,10 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
 - **Waiting agents**: clicking `N needs you` shows the agent that has waited longest. While Herdr's window is not in
   front, each note Herdr posts (needs you, finished, …) becomes a macOS banner; clicking it brings Herdr forward on
   that agent, dismissing it does nothing. In front, notes are drawn in the window as Herdr draws them.
+- **Hand-off**: hovering a local agent that isn't working shows a button (two-arrows icon) beside the pin when the
+  terminal has the conversation labels and the map has another profile. It opens a popup of the other profiles with
+  their 5h/7d limits; choosing one opens a tab `→ <label>` in the conversation's start folder that copies the
+  conversation to that profile and resumes it there as a fork. The narrow rail shows no button.
 - **Refresh**: the Agents list and the status bar re-read every 30 s; the status bar also reads a machine at once when
   it becomes ready. The Files panel watches folders locally and refreshes remote ones every 10 s.
 
@@ -55,8 +59,11 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
   machine, capped at 64 KiB and 32 × 4 KiB), read-only `git` (`rev-parse`, `status`) in the Files panel, and
   `terminal-notifier` (optional, this computer only) for banners: `-title -message -group -activate dev.herdr.app
   -action Show -timeout 540`, text as arguments without control characters. No network, no credentials.
+- Hand-off: `mods/latveria-agents/handoff.js` (pure functions and `HANDOFF_SH`, a fixed `sh` script that gets the
+  transcript, target folder, uuid and target `claudeDir` only as `$1`–`$4`); the popup is an `openOverlay` popup of
+  `latveria-agents`, the tab comes from `run("tab.new", {space, folder, name, argv})`.
 - Outside Herdr, per machine: `hooks/latveria-label.sh`, a Claude Code `SessionStart` hook that labels the terminal
-  `latveria.profile=<KEY>`; `hooks/latveria-quota.sh`, called from the statusline script with Claude Code's
+  `latveria.profile=<KEY>` and, from its stdin JSON, `latveria.transcript` and `latveria.cwd`; `hooks/latveria-quota.sh`, called from the statusline script with Claude Code's
   statusline JSON, which writes `~/.cache/latveria/quota-<KEY>.json` only when the limits change;
   `hooks/latveria-profile.sh`, the profile matching both share. They need `jq` and print nothing.
 - Art: Material Icon Theme 5.40.0 SVGs (MIT), 1131 icons, in `mods/latveria-files/icons/material/`.
@@ -76,6 +83,14 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
   Notifications; without them notes stay in the window. Only its waiting mode (`-action … -timeout`) delivers the
   click; read `@TIMEOUT` in stdout, not the exit code, to tell an ignored banner from a click. A toast overlay's
   pending work ends when it closes, so the long-lived status bar waits for the click, not the toast.
+- **Hand-off traps**: `claude --resume` looks only in its own `CLAUDE_CONFIG_DIR`, so the transcript must be copied
+  into the target's `projects/<same folder>/`, which may not exist yet. Resume with `--fork-session`, or a hand-back
+  overwrites a file the old session still writes to. For the default profile unset `CLAUDE_CONFIG_DIR`; setting it to
+  `~/.claude` creates a stray `~/.claude/.claude.json`. Take the folder from the `latveria.cwd` label, not the pane's
+  live folder: resume finds a conversation by the folder it started in.
+  Paths are compared as the map writes them (`~` expanded), not resolved: if `CLAUDE_CONFIG_DIR` names the profile's
+  folder through a symlink while the map uses the real path (or the other way round), the button does not show.
+  Labels outlive Claude in a terminal, so the button also checks that the agent reports `claude-code`.
 - Text sizes live in the mods, so Herdr's own spaces list and tabs keep Herdr's sizes.
 
 ## Done when

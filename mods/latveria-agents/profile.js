@@ -6,6 +6,10 @@ const KEY = /^[A-Za-z0-9_-]{1,24}$/;
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const MAX = 32;
 const isKey = (k) => typeof k === "string" && KEY.test(k);
+// A path a label or the map may hold: at most 1024 characters, no control characters (so no newline).
+export const plainPath = (p) => typeof p === "string" && p.length <= 1024 && !/[\u0000-\u001f\u007f]/.test(p);
+// The profile's Claude folder as the map writes it (~, ~/… or absolute), for a hand-off; anything odd → null.
+const isDir = (d) => plainPath(d) && (d === "~" || d.startsWith("~/") || d.startsWith("/")) && !d.split("/").includes("..");
 
 // "laptop/t2" → "laptop"; a terminal here has no machine in its address.
 export const machineOf = (address) => (typeof address === "string" && address.includes("/") ? address.split("/")[0] : null);
@@ -19,6 +23,7 @@ export function parseProfiles(text) {
     key: p.key,
     label: typeof p.label === "string" && p.label.trim() ? p.label.trim().slice(0, 16) : p.key,
     color: typeof p.color === "string" && COLOR.test(p.color) ? p.color : null,
+    dir: isDir(p.claudeDir) ? p.claudeDir : null,
   }));
 }
 
