@@ -58,7 +58,8 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
 - Programs they run: `sh` (to read `~/.config/latveria/profiles.json` and `~/.cache/latveria/quota-*.json` on each
   machine, capped at 64 KiB and 32 × 4 KiB), read-only `git` (`rev-parse`, `status`) in the Files panel, and
   `terminal-notifier` (optional, this computer only) for banners: `-title -message -group -activate dev.herdr.app
-  -action Show -timeout 540`, text as arguments without control characters. No network, no credentials.
+  -execute "<herdr-app> do <action> '<args JSON>'"`, text as arguments without control characters and never in
+  the `-execute` command, `herdr-app` found once with `sh -c 'command -v herdr-app'`. No network, no credentials.
 - Hand-off: `mods/latveria-agents/handoff.js` (pure functions and `HANDOFF_SH`, a fixed `sh` script that gets the
   transcript, target folder, uuid and target `claudeDir` only as `$1`–`$4`); the popup is an `openOverlay` popup of
   `latveria-agents`, the tab comes from `run("tab.new", {space, folder, name, argv})`.
@@ -80,9 +81,12 @@ text/background pair is at least 4.5:1 and no text is smaller than 12 px.
 - Herdr updates itself; after an update run `node scripts/upstream-diff.mjs` to see whether a cloned mod changed
   upstream.
 - **Banners need `terminal-notifier`** (`brew install terminal-notifier`) and its permission in System Settings ›
-  Notifications; without them notes stay in the window. Only its waiting mode (`-action … -timeout`) delivers the
-  click; read `@TIMEOUT` in stdout, not the exit code, to tell an ignored banner from a click. A toast overlay's
-  pending work ends when it closes, so the long-lived status bar waits for the click, not the toast.
+  Notifications; without them notes stay in the window. **Do not use its waiting mode** (`-action … -timeout`): on a
+  click it prints and exits while macOS is still bringing it forward, and every click shows “The application
+  ‘terminal-notifier’ is not open anymore” (LaunchServices -600). Post and let it exit: macOS keeps the banner and a
+  click relaunches the program, which runs `-activate` and `-execute`. `-execute` runs in `/bin/sh` with the system
+  PATH only, so give `herdr-app` by absolute path. A toast overlay's pending work ends when it closes, so the
+  long-lived status bar posts the banner, not the toast.
 - **Hand-off traps**: `claude --resume` looks only in its own `CLAUDE_CONFIG_DIR`, so the transcript must be copied
   into the target's `projects/<same folder>/`, which may not exist yet. Resume with `--fork-session`, or a hand-back
   overwrites a file the old session still writes to. For the default profile unset `CLAUDE_CONFIG_DIR`; setting it to
