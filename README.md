@@ -114,8 +114,9 @@ In another app you hear the sound and see nothing. The `latveria` layout adds:
 - **Dock badge**: the number of agents that need you, on this computer and every machine, on Herdr's Dock icon.
 - **Clickable counter**: `· 2 needs you` in the status bar shows the agent that has waited longest.
 - **macOS banners**: while Herdr's window is not in front, every note Herdr posts becomes a banner under the clock
-  (the `latveria-toast` mod hands it to the status bar, which waits for the click). Clicking it brings Herdr forward
-  on that agent; closing or swiping it away changes nothing. While Herdr is in front, notes look as before.
+  (the `latveria-toast` mod hands it to the status bar, which hands it to macOS). Clicking it brings Herdr forward
+  on that agent (through `herdr-app do agent.focus`, so `herdr-app` must be on your PATH; without it the click only
+  brings Herdr forward); closing or swiping it away changes nothing. While Herdr is in front, notes look as before.
 
 Banners need [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) (MIT), which the installer does not
 install:

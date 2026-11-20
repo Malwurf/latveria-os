@@ -388,16 +388,61 @@ async function bar() {
   return { v, ...t };
 }
 
-test("a queued note becomes a banner that waits for a click; the queue empties", async () => {
+const APP = "/opt/herdr/bin/herdr-app";
+const lookups = () => fake.execs.filter((e) => e.cmd === "sh" && e.args.join(" ").includes("command -v herdr-app"));
+// The notifier's answer for banners; `command -v herdr-app` finds the app (or not); quota reads answer empty.
+const notifier = (answer, app = APP) => {
+  fake.exec = (cmd, args) => {
+    if (cmd === "terminal-notifier") return answer();
+    if (args.join(" ").includes("command -v herdr-app")) return { stdout: app ? `${app}\n` : "" };
+    return { stdout: "" };
+  };
+};
+
+test("a queued note becomes a banner that does not wait; the queue empties", async () => {
+  notifier(() => ({ code: 0, stdout: "" }));
   const { tick } = await bar();
   queued({});
   tick();
   await settle();
   assert.equal(banners().length, 1);
-  assert.deepEqual(banners()[0].args, notifierArgs(BANNER));
-  assert.equal(banners()[0].options.timeout, 600000);
+  assert.deepEqual(banners()[0].args, notifierArgs(BANNER, APP));
+  assert.equal(banners()[0].options.timeout, 10000);
   assert.equal(banners()[0].options.on, undefined, "on this computer: the banner shows where the window is");
   assert.deepEqual(fake.shared["latveria.notes"], []);
+});
+
+test("a shown banner runs nothing here and draws nothing: its click runs herdr-app do", async () => {
+  notifier(() => ({ code: 0, stdout: "" }));
+  const { tick } = await bar();
+  queued({});
+  tick();
+  await settle();
+  assert.deepEqual([fake.runs, fake.notes], [[], []]);
+  assert.ok(banners()[0].args.at(-1).startsWith(`${APP} do agent.focus `));
+});
+
+test("herdr-app is looked up once while found, and again while not", async () => {
+  notifier(() => ({ code: 0, stdout: "" }));
+  const { tick } = await bar();
+  queued({});
+  tick();
+  await settle();
+  queued({ title: "t8 needs you", action: { name: "agent.focus", args: { terminal: "t8" } } });
+  tick();
+  await settle();
+  assert.equal(lookups().length, 1);
+  assert.equal(lookups()[0].options.on, undefined);
+  notifier(() => ({ code: 0, stdout: "" }), null);
+  const other = await bar();
+  queued({ title: "t9 needs you" });
+  other.tick();
+  await settle();
+  assert.deepEqual(banners().at(-1).args.slice(-2), ["-activate", "dev.herdr.app"], "not found: the click only brings Herdr forward");
+  queued({ title: "t10 needs you" });
+  other.tick();
+  await settle();
+  assert.equal(lookups().length, 3);
 });
 
 test("a note older than a minute is dropped (shared state outlives a restart)", async () => {
@@ -416,37 +461,6 @@ test("no queued note: no exec at all", async () => {
   assert.equal(fake.execs.length, before);
 });
 
-// The notifier's answer for banners only; the quota reads keep answering empty.
-const notifier = (answer) => { fake.exec = (cmd) => (cmd === "terminal-notifier" ? answer() : { stdout: "" }); };
-
-test("a click on the banner runs the note's action", async () => {
-  notifier(() => ({ code: 0, stdout: "" }));
-  const { tick } = await bar();
-  queued({});
-  tick();
-  await settle();
-  assert.deepEqual(fake.runs, [["agent.focus", { terminal: "t7" }]]);
-  assert.deepEqual(fake.notes, []);
-});
-
-test("a banner nobody clicked runs nothing", async () => {
-  notifier(() => ({ code: 6, stdout: "@TIMEOUT\n" }));
-  const { tick } = await bar();
-  queued({});
-  tick();
-  await settle();
-  assert.deepEqual([fake.runs, fake.notes], [[], []]);
-});
-
-test("a note without an action runs nothing on click", async () => {
-  notifier(() => ({ code: 0, stdout: "" }));
-  const { tick } = await bar();
-  queued({ action: undefined });
-  tick();
-  await settle();
-  assert.deepEqual(fake.runs, []);
-});
-
 for (const [why, answer] of [["not installed", () => { throw new Error("no such program"); }], ["not allowed", () => ({ code: 3, stdout: "" })]]) {
   test(`notifier ${why}: the note goes back into the window, and the toast is told to keep notes there`, async (t) => {
     t.mock.method(Date, "now", () => 7000);
@@ -462,32 +476,39 @@ for (const [why, answer] of [["not installed", () => { throw new Error("no such 
   });
 }
 
-test("five banners waiting: a sixth note goes into the window, without a sixth exec", async () => {
-  notifier(() => new Promise(() => {})); // nobody clicks yet
+test("many agents at once: every note gets its banner, nothing waits to cap them", async () => {
+  notifier(() => ({ code: 0, stdout: "" }));
   const { tick } = await bar();
   queued(...Array.from({ length: 6 }, (_, i) => ({ title: `t${i} needs you`, action: { name: "agent.focus", args: { terminal: `t${i}` } } })));
   tick();
   await settle();
-  assert.equal(banners().length, 5);
-  assert.deepEqual(fake.shared["latveria.direct"], ["t5 needs you\nClaude Code"]);
-  assert.equal(fake.notes.length, 1);
-  assert.equal(fake.shared["latveria.notifier"], undefined, "a full queue is not a missing program");
+  assert.equal(banners().length, 6);
+  assert.deepEqual(fake.notes, []);
 });
 
-test("the same note for the same agent while its banner still waits: no second banner", async () => {
-  notifier(() => new Promise(() => {}));
+test("the same note for the same agent within a minute: no second banner, nothing in the window; later it shows again", async (t) => {
+  let now = 100_000;
+  t.mock.method(Date, "now", () => now);
+  notifier(() => ({ code: 0, stdout: "" }));
   const { tick } = await bar();
   queued({});
   tick();
+  await settle();
+  now += 59_000;
   queued({});
   tick();
   await settle();
   assert.equal(banners().length, 1);
-  assert.deepEqual(fake.notes, [], "not drawn in the window either: the banner is still there");
+  assert.deepEqual(fake.notes, []);
+  now += 2_000;
+  queued({});
+  tick();
+  await settle();
+  assert.equal(banners().length, 2);
 });
 
 test("a different note for the same agent gets its own banner", async () => {
-  notifier(() => new Promise(() => {}));
+  notifier(() => ({ code: 0, stdout: "" }));
   const { tick } = await bar();
   queued({});
   tick();
@@ -497,19 +518,7 @@ test("a different note for the same agent gets its own banner", async () => {
   assert.equal(banners().length, 2);
 });
 
-test("once a banner is answered, the same note can show again", async () => {
-  notifier(() => ({ code: 6, stdout: "@TIMEOUT" }));
-  const { tick } = await bar();
-  queued({});
-  tick();
-  await settle();
-  queued({});
-  tick();
-  await settle();
-  assert.equal(banners().length, 2);
-});
-
-test("another failure draws the note in the window but keeps trying banners", async () => {
+test("another failure draws the note in the window, keeps trying banners, and does not hold the note back", async () => {
   notifier(() => ({ code: 1, stdout: "something odd" }));
   const { tick } = await bar();
   queued({});
@@ -517,6 +526,10 @@ test("another failure draws the note in the window but keeps trying banners", as
   await settle();
   assert.equal(fake.notes.length, 1);
   assert.equal(fake.shared["latveria.notifier"], undefined);
+  queued({});
+  tick();
+  await settle();
+  assert.equal(banners().length, 2);
 });
 
 test("Herdr back in front before the bar's tick: the queued note is drawn in the window, no banner", async () => {

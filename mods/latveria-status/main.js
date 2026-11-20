@@ -3,7 +3,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, agents, theme, run, window, keys, machines, setBadge, checking, shared, setShared, notify, exec } from "herdr";
 import { WARN, settled, quotaTone, readQuotas, mergeQuotas, span } from "./quota.js";
-import { notifierArgs, outcome, groupKey, noteKey, MAX_WAITING, EXEC_TIMEOUT_MS } from "./notifier.js";
+import { notifierArgs, outcome, groupKey, noteKey, appPath, EXEC_TIMEOUT_MS, REPEAT_MS } from "./notifier.js";
 
 const NOTE_TTL_MS = 60_000; // shared state outlives a restart: an old note is news no more
 
@@ -33,9 +33,9 @@ export default class WorkspaceStatus extends View {
     this.badge = undefined;
     // When the bar first saw each agent needing you (address → ms), for "waited longest".
     this.since = new Map();
-    this.waiting = 0; // banners waiting for a click
-    // What each waiting banner says, by group: Herdr can post the same note twice for one wait (seen live 17.11).
+    // What each agent's last banner said and when (group → {says, at}): Herdr can post one note twice (seen 17.11).
     this.shownNotes = new Map();
+    this.app = null; // herdr-app's absolute path, which a banner's click runs; looked up until found
     // Each machine's last readings (null: this one), kept when it stops answering.
     this.byMachine = new Map();
     // The ready machines at the last check: a machine joining them is read at once, not at the next 30 s read.
@@ -83,30 +83,43 @@ export default class WorkspaceStatus extends View {
     }
   }
 
-  // A macOS banner that waits up to 9 minutes for a click; the bar waits, because a toast's work ends with its overlay.
+  // A macOS banner handed to macOS; nothing waits for the click. Its click brings Herdr forward and runs the note's
+  // action through `herdr-app do`, so the bar is done once the banner is shown.
   banner(note, cx) {
     const group = groupKey(note);
     const says = noteKey(note);
-    if (this.shownNotes.get(group) === says) return; // that banner is still up and leads to the same place
-    if (this.waiting >= MAX_WAITING) return this.intoWindow(note, false);
-    this.waiting++;
-    this.shownNotes.set(group, says);
+    const now = Date.now();
+    for (const [g, s] of this.shownNotes) if (now - s.at >= REPEAT_MS) this.shownNotes.delete(g);
+    if (this.shownNotes.get(group)?.says === says) return; // that banner is up and leads to the same place
+    const shown = { says, at: now };
+    this.shownNotes.set(group, shown);
     cx.spawn(async () => {
       let result;
       try {
-        result = await exec("terminal-notifier", notifierArgs(note), { timeout: EXEC_TIMEOUT_MS });
+        result = await exec("terminal-notifier", notifierArgs(note, await this.herdrApp()), { timeout: EXEC_TIMEOUT_MS });
       } catch (e) {
         result = e;
       }
-      this.waiting--;
-      if (this.shownNotes.get(group) === says) this.shownNotes.delete(group);
       const o = outcome(result);
-      if (o === "clicked" && note.action?.name) run(note.action.name, note.action.args ?? {});
-      if (o === "missing" || o === "failed") this.intoWindow(note, o === "missing");
+      if (o === "shown") return;
+      if (this.shownNotes.get(group) === shown) this.shownNotes.delete(group);
+      this.intoWindow(note, o === "missing");
     });
   }
 
-  // No banner for this note (no program, no permission, another failure, five already waiting, or Herdr back in
+  // herdr-app as this computer's PATH finds it. The click runs in a shell with only the system PATH, so it needs the
+  // absolute path. Kept once found; not found (no banner click then runs an action), asked again with the next banner.
+  async herdrApp() {
+    if (this.app) return this.app;
+    try {
+      this.app = appPath((await exec("sh", ["-c", "command -v herdr-app"], { timeout: 5000 }))?.stdout);
+    } catch {
+      this.app = null;
+    }
+    return this.app;
+  }
+
+  // No banner for this note (no program, no permission, another failure, or Herdr back in
   // front): back to Herdr's window. The toast that finds the note's key in latveria.direct draws it instead of
   // handing it over again. Only a missing program or permission keeps the toast drawing for the next 10 minutes.
   intoWindow(note, missing) {
