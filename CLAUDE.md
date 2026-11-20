@@ -12,7 +12,8 @@ właściciela 17.11.2026). Independent fan tribute, not affiliated with Marvel.
 2. **Tylko odczyt wobec repozytoriów.** Mody nie robią `push`/`merge`/`commit` ani nie usuwają
    plików. Dozwolone programy: `git` (tylko odczyt), `sh`, `hc`, `powershell` (tylko listowanie) i
    `terminal-notifier` (sam dymek macOS; jego klik uruchamia tylko `herdr-app do <akcja notki>` z nazwą akcji
-   i argumentami po walidacji — bez tekstu notki). *Test: skaner listy dozwolonych komend `exec` (`test/rules.test.mjs`).*
+   i argumentami po walidacji — bez tekstu notki). *Test: skaner listy dozwolonych komend `exec` (`test/rules.test.mjs`);
+   komenda kliknięcia przez prawdziwy `sh` i odrzucanie niepoprawnych akcji/ścieżek (`test/notifier.test.mjs`).*
 3. **Czytelność.** Każda para tekst/tło w motywie ≥ 4,5:1, tekst ≥ 12 px. Znany wyjątek: plakietka
    statusu na tincie 0x26 spada poniżej 4,5:1 na `selected` — mody nie tintują zaznaczonego wiersza.
    *Test: kontrast z pliku motywu (`test/theme.test.mjs`); skan rozmiarów tekstu w modach

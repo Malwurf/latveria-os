@@ -36,6 +36,7 @@ export default class WorkspaceStatus extends View {
     // What each agent's last banner said and when (group → {says, at}): Herdr can post one note twice (seen 17.11).
     this.shownNotes = new Map();
     this.app = null; // herdr-app's absolute path, which a banner's click runs; looked up until found
+    this.lookup = null; // that lookup while it runs
     // Each machine's last readings (null: this one), kept when it stops answering.
     this.byMachine = new Map();
     // The ready machines at the last check: a machine joining them is read at once, not at the next 30 s read.
@@ -109,14 +110,17 @@ export default class WorkspaceStatus extends View {
 
   // herdr-app as this computer's PATH finds it. The click runs in a shell with only the system PATH, so it needs the
   // absolute path. Kept once found; not found (no banner click then runs an action), asked again with the next banner.
-  async herdrApp() {
-    if (this.app) return this.app;
-    try {
-      this.app = appPath((await exec("sh", ["-c", "command -v herdr-app"], { timeout: 5000 }))?.stdout);
-    } catch {
-      this.app = null;
-    }
-    return this.app;
+  // Banners from one tick share the lookup in flight.
+  herdrApp() {
+    if (this.app) return Promise.resolve(this.app);
+    this.lookup ??= exec("sh", ["-c", "command -v herdr-app"], { timeout: 5000 })
+      .then((r) => appPath(r?.stdout), () => null)
+      .then((app) => {
+        this.app = app;
+        this.lookup = null;
+        return app;
+      });
+    return this.lookup;
   }
 
   // No banner for this note (no program, no permission, another failure, or Herdr back in

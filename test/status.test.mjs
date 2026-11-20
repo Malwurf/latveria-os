@@ -445,6 +445,17 @@ test("herdr-app is looked up once while found, and again while not", async () =>
   assert.equal(lookups().length, 3);
 });
 
+test("banners in one tick share one herdr-app lookup", async () => {
+  notifier(() => ({ code: 0, stdout: "" }));
+  const { tick } = await bar();
+  queued(...Array.from({ length: 4 }, (_, i) => ({ title: `t${i} needs you`, action: { name: "agent.focus", args: { terminal: `t${i}` } } })));
+  tick();
+  await settle();
+  assert.equal(banners().length, 4);
+  assert.equal(lookups().length, 1);
+  assert.ok(banners().every((b) => b.args.includes("-execute")));
+});
+
 test("a note older than a minute is dropped (shared state outlives a restart)", async () => {
   const { tick } = await bar();
   queued({ at: Date.now() - 61_000 });

@@ -28,7 +28,7 @@ Text in a banner SHALL be passed to the banner program as separate arguments, ne
 characters removed, the title cut to 120 and the text to 240 characters, and a first character that the program would
 read as a property list (`[`, `(`, `{`, `"`, `'`, `<`) escaped. An empty title SHALL read `Herdr`, and an empty text
 SHALL repeat the title. The command a click runs SHALL hold only the absolute path of `herdr-app`, the note's action
-name (lowercase words joined by dots) and its arguments as one single-quoted JSON argument of at most 512
+name (parts of lowercase letters, digits and underscores joined by dots, starting with a letter) and its arguments as one single-quoted JSON argument of at most 512
 characters; a note whose action fails these checks, or no `herdr-app` found, SHALL give a banner whose click only
 brings Herdr forward.
 
@@ -50,7 +50,7 @@ brings Herdr forward.
 
 ### Requirement: One banner per agent
 A newer banner for the same agent SHALL replace the older one, and the same note for the same agent again within one
-minute SHALL show no second banner.
+minute of its banner, while no other note for that agent has replaced it, SHALL show no second banner.
 
 #### Scenario: Same agent asks again
 - **WHEN** an agent's note arrives while its earlier banner is still shown
